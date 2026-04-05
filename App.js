@@ -8,10 +8,12 @@ import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
-import { FontAwesome5 } from '@expo/vector-icons';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 
+
+
 import Sidebar from './src/components/Sidebar';
+import SidebarToggleButton from './src/components/SidebarToggleButton';
 import SettingsModal from './src/components/SettingsModal';
 import HistoryModal from './src/components/HistoryModal';
 import { useSettings } from './src/hooks/useSettings';
@@ -45,8 +47,8 @@ function SplashScreen({ isReady, onFinish }) {
   useEffect(() => {
     // Phase 1: Logo Fade In 
     Animated.parallel([
-      Animated.timing(logoOpacity, { toValue: 1, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-      Animated.timing(logoScale, { toValue: 1, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+      Animated.timing(logoOpacity, { toValue: 1, duration: 800, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
+      Animated.timing(logoScale, { toValue: 1, duration: 800, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
     ]).start();
 
     // Heartbeat Line: Draws mechanically (0 to 1) over 2500ms
@@ -65,21 +67,21 @@ function SplashScreen({ isReady, onFinish }) {
     setTimeout(() => {
       // 1. Text fades in and slides up natively right out of the background
       Animated.parallel([
-        Animated.timing(textOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.timing(textTranslateY, { toValue: 0, duration: 600, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+        Animated.timing(textOpacity, { toValue: 1, duration: 600, useNativeDriver: false }),
+        Animated.timing(textTranslateY, { toValue: 0, duration: 600, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
       ]).start();
 
       // 2. Logo physically pulses outward exactly as the heartbeat spike hits
       Animated.sequence([
-        Animated.timing(logoScale, { toValue: 1.05, duration: 300, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-        Animated.timing(logoScale, { toValue: 1, duration: 400, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(logoScale, { toValue: 1.05, duration: 300, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(logoScale, { toValue: 1, duration: 400, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
       ]).start();
 
     }, 1250);
 
     // Credit Text Appears softly right as the layout stabilizes
     setTimeout(() => {
-      Animated.timing(creditOpacity, { toValue: 0.7, duration: 800, useNativeDriver: true }).start();
+      Animated.timing(creditOpacity, { toValue: 0.7, duration: 800, useNativeDriver: false }).start();
     }, 2000);
   }, []);
 
@@ -207,7 +209,11 @@ function MoonBeatTimer() {
 
   const handleSaveHistory = async (sessionPayload) => {
     const newSaved = await saveHistoryEntry(sessionPayload);
-    if (newSaved) setSavedHistory(newSaved);
+    if (newSaved) {
+      setSavedHistory(newSaved);
+      // Remove from 'Recent' list since it's now in 'Saved'
+      setRecentHistory(prev => prev.filter(item => item.id !== sessionPayload.id));
+    }
   };
 
   const handleDeleteHistory = async (id) => {
@@ -222,15 +228,13 @@ function MoonBeatTimer() {
           style={styles.keyboardContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          <TouchableOpacity
-            style={styles.menuButton}
+          <SidebarToggleButton 
+            isOpen={isDrawerOpen} 
             onPress={() => {
               Haptics.selectionAsync();
-              setIsDrawerOpen(true);
-            }}
-          >
-            <FontAwesome5 name="bars" size={26} color="#94a3b8" />
-          </TouchableOpacity>
+              setIsDrawerOpen(!isDrawerOpen);
+            }} 
+          />
 
           <Image source={require('./assets/icon.png')} style={styles.homeLogoImage} />
           <Text style={styles.title}>MoonBeat</Text>
@@ -345,12 +349,22 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
 
+  // No longer using vector icon fonts, using PNG assets instead.
+  // This avoids font-loading race conditions in standalone APKs.
+
   useEffect(() => {
-    // Simulate a backend fetch, loading fonts, or checking login state
-    const simulateLoading = setTimeout(() => {
-      setIsReady(true);
-    }, 3500);
-    return () => clearTimeout(simulateLoading);
+    async function prepare() {
+      try {
+        // Splash visual hold
+        await new Promise(resolve => setTimeout(resolve, 3500));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsReady(true);
+      }
+    }
+
+    prepare();
   }, []);
 
   if (isSplashVisible) {
@@ -416,13 +430,6 @@ const styles = StyleSheet.create({
   splashCreditVersion: {
     fontSize: 10,
     color: '#64748b',
-  },
-  menuButton: {
-    position: 'absolute',
-    top: 20,
-    left: -10,
-    zIndex: 10,
-    padding: 15,
   },
   homeLogoImage: {
     width: 60,

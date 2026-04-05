@@ -4,7 +4,7 @@ import {
   Dimensions, ScrollView, TouchableOpacity, Easing, Image
 } from 'react-native';
 import PresetItem from './PresetItem';
-import { FontAwesome5 } from '@expo/vector-icons';
+import Icon from '../components/Icon';
 import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
@@ -22,13 +22,13 @@ export default function Sidebar({ isOpen, onClose, presets, onSelect, onDelete, 
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 300,
-          useNativeDriver: true,
+          useNativeDriver: false,
           easing: Easing.out(Easing.poly(4)),
         }),
         Animated.timing(fadeAnim, {
           toValue: 0.6, // Dim background heavily
           duration: 300,
-          useNativeDriver: true,
+          useNativeDriver: false,
         })
       ]).start();
     } else {
@@ -36,13 +36,13 @@ export default function Sidebar({ isOpen, onClose, presets, onSelect, onDelete, 
         Animated.timing(slideAnim, {
           toValue: -DRAWER_WIDTH,
           duration: 250,
-          useNativeDriver: true,
+          useNativeDriver: false,
           easing: Easing.in(Easing.poly(4)),
         }),
         Animated.timing(fadeAnim, {
           toValue: 0,
           duration: 250,
-          useNativeDriver: true,
+          useNativeDriver: false,
         })
       ]).start(() => {
         setIsRendering(false);
@@ -66,10 +66,10 @@ export default function Sidebar({ isOpen, onClose, presets, onSelect, onDelete, 
           <Text style={styles.headerTitle}>MoonBeat Presets</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity onPress={() => { Haptics.selectionAsync(); onOpenSettings(); }} style={[styles.closeBtn, { marginRight: 15 }]}>
-              <FontAwesome5 name="cog" size={20} color="#cbd5e1" />
+              <Icon name="cog" size={20} color="#cbd5e1" />
             </TouchableOpacity>
             <TouchableOpacity onPress={() => { Haptics.selectionAsync(); onClose(); }} style={styles.closeBtn}>
-              <FontAwesome5 name="times" size={20} color="#94a3b8" />
+              <Icon name="close" size={20} color="#94a3b8" />
             </TouchableOpacity>
           </View>
         </View>
@@ -82,7 +82,7 @@ export default function Sidebar({ isOpen, onClose, presets, onSelect, onDelete, 
             onAddPreset();
           }}
         >
-          <FontAwesome5 name="plus" size={16} color="#8ab4f8" />
+          <Icon name="plus" size={16} color="#8ab4f8" />
           <Text style={styles.addButtonText}>Save Current Timer</Text>
         </TouchableOpacity>
 
@@ -94,14 +94,14 @@ export default function Sidebar({ isOpen, onClose, presets, onSelect, onDelete, 
             onOpenHistory();
           }}
         >
-          <FontAwesome5 name="history" size={16} color="#94a3b8" />
+          <Icon name="history" size={16} color="#94a3b8" />
           <Text style={[styles.addButtonText, { color: '#cbd5e1' }]}>Recent History</Text>
         </TouchableOpacity>
 
         <ScrollView style={styles.presetList} contentContainerStyle={{ paddingBottom: 20 }}>
           {presets.length === 0 ? (
             <View style={styles.emptyState}>
-              <FontAwesome5 name="clock" size={32} color="#4a5568" style={{ marginBottom: 16 }} />
+              <Icon name="clock" size={32} color="#4a5568" style={{ marginBottom: 16 }} />
               <Text style={styles.emptyText}>No presets saved yet.</Text>
               <Text style={styles.emptySubtext}>Configure a timer and hit save!</Text>
             </View>

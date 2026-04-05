@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Alert, Keyboard, Vibration } from 'react-native';
+import { Alert, Keyboard } from 'react-native';
+import { triggerVibration } from '../utils/vibration';
 import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
 
@@ -41,8 +42,8 @@ export function useTimerEngine(player, settings, onSessionComplete) {
     }
 
     if (settings?.vibrationEnabled) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      Vibration.vibrate([0, 500, 200, 500]);
+      // Unified vibration/haptic helper (primary Haptics, fallback native Vibration)
+      triggerVibration(settings?.vibrationEnabled);
     }
 
     if (!isExpoGo && Notifications) {
@@ -92,10 +93,12 @@ export function useTimerEngine(player, settings, onSessionComplete) {
   };
 
   const handleStop = () => {
+    if (!isRunning) return; // Prevent double logging
+
     // Generate history object BEFORE we clear the state payloads!
     if (sessionTimeElapsed > 0 && onSessionComplete) {
       onSessionComplete({
-        id: Date.now().toString(),
+        id: `MB-${Date.now()}-${Math.floor(Math.random() * 1000)}`, // More unique ID
         startTime: sessionStartTime,
         endTime: new Date().toISOString(),
         totalSessionTime: sessionTimeElapsed,

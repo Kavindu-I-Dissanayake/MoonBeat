@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, Modal, TouchableOpacity, ScrollView } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import Icon from '../components/Icon';
 import Constants from 'expo-constants';
 
 export default function HistoryModal({ 
@@ -13,12 +13,12 @@ export default function HistoryModal({
   formatSessionTime
 }) {
   const renderItem = (item, isSaved) => (
-    <View key={item.id} style={styles.historyCard}>
+    <View key={`${isSaved ? 's' : 'r'}-${item.id}`} style={styles.historyCard}>
       <View style={styles.historyHeader}>
         <Text style={styles.dateText}>{new Date(item.startTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</Text>
         {isSaved && (
           <TouchableOpacity onPress={() => onDeleteEntry(item.id)} style={styles.deleteIcon}>
-            <FontAwesome5 name="trash-alt" size={16} color="#ef4444" />
+            <Icon name="trash_alt" size={16} color="#ef4444" />
           </TouchableOpacity>
         )}
       </View>
@@ -46,7 +46,7 @@ export default function HistoryModal({
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Session History</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-            <FontAwesome5 name="times" size={24} color="#94a3b8" />
+            <Icon name="times" size={24} color="#94a3b8" />
           </TouchableOpacity>
         </View>
 

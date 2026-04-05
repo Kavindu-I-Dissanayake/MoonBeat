@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import Icon from '../components/Icon';
 import * as Haptics from 'expo-haptics';
 
 export default function PresetItem({ preset, onSelect, onDelete }) {
@@ -39,7 +39,7 @@ export default function PresetItem({ preset, onSelect, onDelete }) {
         style={styles.deleteButton}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <FontAwesome5 name="trash" size={16} color="#ef4444" />
+        <Icon name="trash" size={16} color="#ef4444" />
       </TouchableOpacity>
     </TouchableOpacity>
   );

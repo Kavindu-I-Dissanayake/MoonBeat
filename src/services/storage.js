@@ -32,7 +32,7 @@ export const savePreset = async (mainTime, gapTime) => {
     }
 
     const newPreset = {
-      id: Date.now().toString(),
+      id: `P-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       mainTime: parseInt(mainTime, 10),
       gapTime: parseInt(gapTime, 10),
     };

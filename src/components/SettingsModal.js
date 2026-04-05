@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Switch, ScrollView, Alert } from 'react-native';
-import { FontAwesome5 } from '@expo/vector-icons';
+import Icon from '../components/Icon';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Haptics from 'expo-haptics';
 import { clearAllPresets } from '../services/storage';
@@ -28,14 +28,14 @@ export default function SettingsModal({ isVisible, onClose, settings, updateSett
       "This will permanently shred all your saved custom timer lengths. Are you extremely sure?",
       [
         { text: "Cancel", style: "cancel" },
-        { 
-          text: "Wipe All Data", 
-          style: "destructive", 
+        {
+          text: "Wipe All Data",
+          style: "destructive",
           onPress: async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             await clearAllPresets();
             if (onClearPresetsComplete) onClearPresetsComplete();
-          } 
+          }
         }
       ]
     );
@@ -52,16 +52,16 @@ export default function SettingsModal({ isVisible, onClose, settings, updateSett
     >
       <View style={styles.overlay}>
         <View style={styles.modalContent}>
-          
+
           <View style={styles.header}>
             <Text style={styles.headerTitle}>⚙️ Configurations</Text>
             <TouchableOpacity onPress={() => { Haptics.selectionAsync(); onClose(); }} style={styles.closeBtn}>
-              <FontAwesome5 name="times" size={24} color="#94a3b8" />
+              <Icon name="times" size={24} color="#94a3b8" />
             </TouchableOpacity>
           </View>
 
           <ScrollView style={styles.scrollBody} contentContainerStyle={{ paddingBottom: 40 }}>
-            
+
             {/* Audio Block */}
             <Text style={styles.sectionHeader}>AUDIO ALARMS</Text>
             <View style={styles.card}>
@@ -86,8 +86,11 @@ export default function SettingsModal({ isVisible, onClose, settings, updateSett
                   <Text style={styles.actionBtnText}>Change</Text>
                 </TouchableOpacity>
                 {settings.customSoundUri && (
-                  <TouchableOpacity style={[styles.actionBtn, {backgroundColor: '#ef4444', marginLeft: 10}]} onPress={() => updateSettings({ customSoundUri: null })}>
-                    <FontAwesome5 name="trash" size={14} color="#fff" />
+                  <TouchableOpacity
+                    style={[styles.actionBtn, { backgroundColor: '#ef4444', marginLeft: 10, width: 45, alignItems: 'center', justifyContent: 'center' }]}
+                    onPress={() => updateSettings({ customSoundUri: null })}
+                  >
+                    <Icon name="trash" size={14} color="#ffffff" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -140,7 +143,7 @@ export default function SettingsModal({ isVisible, onClose, settings, updateSett
             {/* Danger Zone */}
             <Text style={[styles.sectionHeader, { color: '#ef4444', marginTop: 30 }]}>DANGER ZONE</Text>
             <TouchableOpacity style={styles.dangerCard} onPress={handleClearPresets} activeOpacity={0.7}>
-              <FontAwesome5 name="exclamation-triangle" size={16} color="#ef4444" />
+              <Icon name="exclamation_triangle" size={16} color="#ef4444" />
               <Text style={styles.dangerText}>Wipe All Custom Presets</Text>
             </TouchableOpacity>
 
