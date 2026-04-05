@@ -7,8 +7,18 @@ import {
 import { useAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import Constants from 'expo-constants';
 import * as Haptics from 'expo-haptics';
-import * as DocumentPicker from 'expo-document-picker';
 import Svg, { Path } from 'react-native-svg';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
+
+
+
+import Sidebar from './src/components/Sidebar';
+import SidebarToggleButton from './src/components/SidebarToggleButton';
+import SettingsModal from './src/components/SettingsModal';
+import HistoryModal from './src/components/HistoryModal';
+import { useSettings } from './src/hooks/useSettings';
+import { useTimerEngine } from './src/hooks/useTimerEngine';
+import { getPresets, savePreset, deletePreset, getSavedHistory, saveHistoryEntry, deleteHistoryEntry } from './src/services/storage';
 
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 const isExpoGo = Constants.appOwnership === 'expo';
@@ -37,8 +47,8 @@ function SplashScreen({ isReady, onFinish }) {
   useEffect(() => {
     // Phase 1: Logo Fade In 
     Animated.parallel([
-      Animated.timing(logoOpacity, { toValue: 1, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-      Animated.timing(logoScale, { toValue: 1, duration: 800, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+      Animated.timing(logoOpacity, { toValue: 1, duration: 800, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
+      Animated.timing(logoScale, { toValue: 1, duration: 800, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
     ]).start();
 
     // Heartbeat Line: Draws mechanically (0 to 1) over 2500ms
@@ -57,21 +67,21 @@ function SplashScreen({ isReady, onFinish }) {
     setTimeout(() => {
       // 1. Text fades in and slides up natively right out of the background
       Animated.parallel([
-        Animated.timing(textOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
-        Animated.timing(textTranslateY, { toValue: 0, duration: 600, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
+        Animated.timing(textOpacity, { toValue: 1, duration: 600, useNativeDriver: false }),
+        Animated.timing(textTranslateY, { toValue: 0, duration: 600, useNativeDriver: false, easing: Easing.out(Easing.ease) }),
       ]).start();
 
       // 2. Logo physically pulses outward exactly as the heartbeat spike hits
       Animated.sequence([
-        Animated.timing(logoScale, { toValue: 1.05, duration: 300, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-        Animated.timing(logoScale, { toValue: 1, duration: 400, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(logoScale, { toValue: 1.05, duration: 300, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(logoScale, { toValue: 1, duration: 400, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
       ]).start();
 
     }, 1250);
 
     // Credit Text Appears softly right as the layout stabilizes
     setTimeout(() => {
-      Animated.timing(creditOpacity, { toValue: 0.7, duration: 800, useNativeDriver: true }).start();
+      Animated.timing(creditOpacity, { toValue: 0.7, duration: 800, useNativeDriver: false }).start();
     }, 2000);
   }, []);
 
@@ -133,136 +143,82 @@ function SplashScreen({ isReady, onFinish }) {
 }
 
 function MoonBeatTimer() {
-  const [mainTimeStr, setMainTimeStr] = useState('25');
-  const [gapTimeStr, setGapTimeStr] = useState('5');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [presets, setPresets] = useState([]);
+  
+  const [recentHistory, setRecentHistory] = useState([]);
+  const [savedHistory, setSavedHistory] = useState([]);
 
-  const [timeLeft, setTimeLeft] = useState(25);
-  const [phase, setPhase] = useState('WORK');
-  const [isRunning, setIsRunning] = useState(false);
-  const [customAudioUri, setCustomAudioUri] = useState(null);
+  const { settings, updateSettings } = useSettings();
+  const player = useAudioPlayer(settings?.customSoundUri ? settings.customSoundUri : require('./assets/beep.wav'));
 
-  const player = useAudioPlayer(customAudioUri ? customAudioUri : require('./assets/beep.wav'));
-  const timerRef = useRef(null);
+  const handleSessionComplete = (sessionPayload) => {
+    setRecentHistory(prev => [sessionPayload, ...prev]);
+  };
+
+  const {
+    mainTimeStr, setMainTimeStr,
+    gapTimeStr, setGapTimeStr,
+    timeLeft,
+    phase,
+    isRunning,
+    isPaused,
+    sessionTimeElapsed,
+    workRoundsCompleted,
+    handleStart,
+    handlePause,
+    handleResume,
+    handleStop,
+    handleSelectPreset,
+    formatTime,
+    formatSessionTime
+  } = useTimerEngine(player, settings, handleSessionComplete);
 
   useEffect(() => {
-    (async () => {
-      await setAudioModeAsync({ playsInSilentMode: true });
+    const loadSaved = async () => {
+      const data = await getPresets();
+      setPresets(data);
+      const historyData = await getSavedHistory();
+      setSavedHistory(historyData);
+    };
+    loadSaved();
 
-      if (isExpoGo) return;
-
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      if (finalStatus !== 'granted') {
-        console.log('Notification permissions not granted');
-      }
-    })();
+    return () => deactivateKeepAwake();
   }, []);
 
-  const triggerAlarm = () => {
-    try {
-      if (player) {
-        if (typeof player.seekTo === 'function') {
-          player.seekTo(0);
-        } else if (typeof player.setPositionAsync === 'function') {
-          player.setPositionAsync(0);
-        }
-        player.play();
-      }
-    } catch (e) {
-      console.log('Error playing sound', e);
-    }
-
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
-
-    // Add a highly noticeable double-buzz
-    Vibration.vibrate([0, 500, 200, 500]);
-
-    if (!isExpoGo) {
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "🌙 MoonBeat",
-          body: "Work cycle completed. Time to rest!",
-        },
-        trigger: null,
-      }).catch(() => { });
-    }
-  };
-
-  const pickAudio = async () => {
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: 'audio/*',
-        copyToCacheDirectory: true,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        setCustomAudioUri(result.assets[0].uri);
-      }
-    } catch (err) {
-      console.log('Error picking audio:', err);
-    }
-  };
-
-  const handleStart = () => {
-    const mainTimeVal = parseInt(mainTimeStr, 10);
-    const gapTimeVal = parseInt(gapTimeStr, 10);
-
-    if (isNaN(mainTimeVal) || mainTimeVal <= 0 || isNaN(gapTimeVal) || gapTimeVal <= 0) {
-      Alert.alert('Invalid Input', 'Please enter valid positive numbers for both Main Time and Gap Time.');
-      return;
-    }
-
-    Keyboard.dismiss();
-    setPhase('WORK');
-    setTimeLeft(mainTimeVal);
-    setIsRunning(true);
-  };
-
-  const handleStop = () => {
-    setIsRunning(false);
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    setPhase('WORK');
-    setTimeLeft(parseInt(mainTimeStr, 10) || 0);
-  };
-
   useEffect(() => {
-    if (!isRunning) return;
-
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => prev - 1);
-    }, 1000);
-
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [isRunning]);
-
-  useEffect(() => {
-    if (isRunning && timeLeft <= 0) {
-      if (phase === 'WORK') {
-        triggerAlarm();
-        setPhase('REST');
-        setTimeLeft(parseInt(gapTimeStr, 10));
-      } else if (phase === 'REST') {
-        setPhase('WORK');
-        setTimeLeft(parseInt(mainTimeStr, 10));
-      }
+    if (isRunning && settings?.keepAwake) {
+      activateKeepAwakeAsync();
+    } else {
+      deactivateKeepAwake();
     }
-  }, [timeLeft, isRunning, phase, gapTimeStr, mainTimeStr]);
+  }, [isRunning, settings?.keepAwake]);
 
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
+  const handleAddPreset = async () => {
+    if (!mainTimeStr || !gapTimeStr) return;
+    const newPresets = await savePreset(mainTimeStr, gapTimeStr);
+    if (newPresets) setPresets(newPresets);
+  };
+
+  const handleDeletePreset = async (id) => {
+    const newPresets = await deletePreset(id);
+    if (newPresets) setPresets(newPresets);
+  };
+
+  const handleSaveHistory = async (sessionPayload) => {
+    const newSaved = await saveHistoryEntry(sessionPayload);
+    if (newSaved) {
+      setSavedHistory(newSaved);
+      // Remove from 'Recent' list since it's now in 'Saved'
+      setRecentHistory(prev => prev.filter(item => item.id !== sessionPayload.id));
+    }
+  };
+
+  const handleDeleteHistory = async (id) => {
+    const newSaved = await deleteHistoryEntry(id);
+    if (newSaved) setSavedHistory(newSaved);
   };
 
   return (
@@ -272,6 +228,14 @@ function MoonBeatTimer() {
           style={styles.keyboardContainer}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
+          <SidebarToggleButton 
+            isOpen={isDrawerOpen} 
+            onPress={() => {
+              Haptics.selectionAsync();
+              setIsDrawerOpen(!isDrawerOpen);
+            }} 
+          />
+
           <Image source={require('./assets/icon.png')} style={styles.homeLogoImage} />
           <Text style={styles.title}>MoonBeat</Text>
 
@@ -297,41 +261,42 @@ function MoonBeatTimer() {
                 editable={!isRunning}
               />
             </View>
-
-            <TouchableOpacity
-              style={styles.audioPickerButton}
-              onPress={pickAudio}
-              disabled={isRunning}
-            >
-              <Text style={styles.audioPickerText}>
-                {customAudioUri ? "🎵 Custom Audio Selected!" : "🎵 Choose MP3 Alarm"}
-              </Text>
-            </TouchableOpacity>
           </View>
 
           <View style={styles.timerContainer}>
             <Text style={[styles.statusIndicator, phase === 'REST' ? styles.statusRest : styles.statusWork]}>
-              {isRunning ? `${phase} PHASE` : 'READY'}
+              {isRunning || isPaused ? `${phase} PHASE` : 'READY'}
             </Text>
             <Text style={styles.countdown}>
               {formatTime(timeLeft)}
             </Text>
-            <Text style={styles.subText}>Next alarm in: {timeLeft}s</Text>
+
+            <View style={styles.sessionPill}>
+              <Text style={styles.sessionText}>
+                Total: {formatSessionTime(sessionTimeElapsed)}  |  Rounds: {workRoundsCompleted}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.buttonRow}>
-            <TouchableOpacity
-              style={[styles.button, styles.startButton, isRunning && styles.buttonDisabled]}
-              onPress={handleStart}
-              disabled={isRunning}
-            >
-              <Text style={styles.buttonText}>START</Text>
-            </TouchableOpacity>
+            {!isRunning && !isPaused ? (
+              <TouchableOpacity style={[styles.button, styles.startButton]} onPress={handleStart}>
+                <Text style={styles.buttonText}>START</Text>
+              </TouchableOpacity>
+            ) : isRunning && !isPaused ? (
+              <TouchableOpacity style={[styles.button, styles.pauseButton]} onPress={handlePause}>
+                <Text style={styles.buttonText}>PAUSE</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity style={[styles.button, styles.resumeButton]} onPress={handleResume}>
+                <Text style={styles.buttonText}>RESUME</Text>
+              </TouchableOpacity>
+            )}
 
             <TouchableOpacity
-              style={[styles.button, styles.stopButton, !isRunning && styles.buttonDisabled]}
+              style={[styles.button, styles.stopButton, (!isRunning && !isPaused) && styles.buttonDisabled]}
               onPress={handleStop}
-              disabled={!isRunning}
+              disabled={!isRunning && !isPaused}
             >
               <Text style={styles.buttonText}>STOP</Text>
             </TouchableOpacity>
@@ -339,12 +304,43 @@ function MoonBeatTimer() {
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
 
-      {/* Persistent Footer */}
-      <View style={styles.persistentFooter}>
-        <Text style={styles.footerText}>Developed by</Text>
-        <Text style={styles.footerText}>© Kavindu Dissanayake</Text>
-        <Text style={styles.footerText}>v1.0.0</Text>
-      </View>
+      <Sidebar
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        presets={presets}
+        onSelect={handleSelectPreset}
+        onDelete={handleDeletePreset}
+        onAddPreset={handleAddPreset}
+        onOpenSettings={() => {
+          setIsDrawerOpen(false);
+          setTimeout(() => setIsSettingsOpen(true), 250); // slight hardware delay for gorgeous drawer ejection!
+        }}
+        onOpenHistory={() => {
+          setIsDrawerOpen(false);
+          setTimeout(() => setIsHistoryOpen(true), 250);
+        }}
+      />
+
+      <SettingsModal
+        isVisible={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        settings={settings}
+        updateSettings={updateSettings}
+        onClearPresetsComplete={async () => {
+          const data = await getPresets();
+          setPresets(data);
+        }}
+      />
+
+      <HistoryModal
+        isVisible={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        recentHistory={recentHistory}
+        savedHistory={savedHistory}
+        onSaveEntry={handleSaveHistory}
+        onDeleteEntry={handleDeleteHistory}
+        formatSessionTime={formatSessionTime}
+      />
     </View>
   );
 }
@@ -353,12 +349,22 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [isSplashVisible, setIsSplashVisible] = useState(true);
 
+  // No longer using vector icon fonts, using PNG assets instead.
+  // This avoids font-loading race conditions in standalone APKs.
+
   useEffect(() => {
-    // Simulate a backend fetch, loading fonts, or checking login state
-    const simulateLoading = setTimeout(() => {
-      setIsReady(true);
-    }, 3500);
-    return () => clearTimeout(simulateLoading);
+    async function prepare() {
+      try {
+        // Splash visual hold
+        await new Promise(resolve => setTimeout(resolve, 3500));
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsReady(true);
+      }
+    }
+
+    prepare();
   }, []);
 
   if (isSplashVisible) {
@@ -534,11 +540,34 @@ const styles = StyleSheet.create({
   startButton: {
     backgroundColor: '#4285f4',
   },
+  pauseButton: {
+    backgroundColor: '#f59e0b',
+  },
+  resumeButton: {
+    backgroundColor: '#10b981',
+  },
   stopButton: {
     backgroundColor: '#ef4444',
   },
   buttonDisabled: {
     opacity: 0.5,
+  },
+  sessionPill: {
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 5,
+    marginBottom: 15,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  sessionText: {
+    fontSize: 16,
+    color: '#8ab4f8',
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 1,
   },
   buttonText: {
     color: 'white',
